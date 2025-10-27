@@ -35,7 +35,7 @@ class APIProvider(object):
             b = basename
             existing_numbers = [int(n.partition(b)[-1]) for n in existing]
             next_number = max(existing_numbers) + 1
-        return APIManager.BLUEPRINTNAME_FORMAT.format(basename, next_number)
+        return APIProvider.BLUEPRINTNAME_FORMAT.format(basename, next_number)
     
     @staticmethod
     def api_name(collection_name):
@@ -45,7 +45,7 @@ class APIProvider(object):
         `collection_name` must be a string.
 
         """
-        return APIManager.APINAME_FORMAT.format(collection_name)
+        return APIProvider.APINAME_FORMAT.format(collection_name)
     
     def __init__(self, name="restapi", app=None, **kw):
         self.name = name
@@ -115,7 +115,7 @@ class APIProvider(object):
         # the base URL of the endpoints on which requests will be made
         collection_endpoint = '/{0}'.format(collection_name)
         
-        apiname = APIManager.api_name(collection_name)
+        apiname = APIProvider.api_name(collection_name)
         
         preprocessors_ = defaultdict(list)
         postprocessors_ = defaultdict(list)
@@ -128,7 +128,7 @@ class APIProvider(object):
                             preprocess=preprocessors_, postprocess=postprocessors_, primary_key=primary_key,\
                             db=restapi_ext.db)
                                
-        blueprintname = APIManager._next_blueprint_name(app.blueprints, apiname)
+        blueprintname = APIProvider._next_blueprint_name(app.blueprints, apiname)
         blueprint = Blueprint(blueprintname, url_prefix=url_prefix)
         blueprint.add_route(api_view,collection_endpoint,methods=no_instance_methods)
         
@@ -145,7 +145,7 @@ class APIProvider(object):
             # If an application object was already provided in the constructor,
             # raise an error indicating that the user is being confusing.
             if self.app is not None:
-                msg = ('Cannot provide a application in the APIManager'
+                msg = ('Cannot provide a application in the APIProvider'
                        ' constructor and in create_api(); must choose exactly'
                        ' one')
                 raise IllegalArgumentError(msg)
