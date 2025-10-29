@@ -39,41 +39,28 @@ class APIProvider(object):
     
     @staticmethod
     def api_name(collection_name):
-        """Returns the name of the :class:`API` instance exposing models of the
-        specified type of collection.
-
-        `collection_name` must be a string.
-
-        """
         return APIProvider.APINAME_FORMAT.format(collection_name)
     
     def __init__(self, name="restapi", app=None, **kw):
         self.name = name
         self.app = app
         self.apis_to_create = defaultdict(list)
-
-        #: A mapping whose keys are models for which this object has created an
-        #: API via the :meth:`create_api_blueprint` method and whose values are
-        #: the corresponding collection names for those models.
         self.created_apis_for = {}
-
-        # Stash this instance so that it can be examined later by other
-        # functions in this module.
-        #url_for.created_managers.append(self)
-
         if self.app is not None:
-            self.init_app(self.app, **kw)
-            
+            self.init_app(self.app, **kw)            
             
     def init_app(self, app, view_cls=ModelView, preprocess=None, postprocess=None, db=None, *args, **kw):
-        
-        if not hasattr(app, 'extensions'):
-            app.extensions = {}
-            
-        if self.name in app.extensions:
+        # if not hasattr(app, 'extensions'):
+        #     app.extensions = {}
+        if not hasattr(app, "ctx"):
+            app.ctx = type("C", (), {})()
+        if not hasattr(app.ctx, "extensions") or app.ctx.extensions is None:
+            app.ctx.extensions = {}
+        ###
+        if self.name in app.ctx.extensions:
             raise ValueError(self.name + ' has already been initialized on'
                              ' this application: {0}'.format(app))
-        app.extensions[self.name] = RestInfo(db, preprocess or {}, postprocess or {})
+        app.ctx.extensions[self.name] = RestInfo(db, preprocess or {}, postprocess or {})
         
         if app is not None:
             self.app = app
@@ -105,7 +92,7 @@ class APIProvider(object):
         if app is None:
             app = self.app
             
-        restapi_ext = app.extensions[self.name]
+        restapi_ext = app.ctx.extensions[self.name]
         
         methods = frozenset((m.upper() for m in methods))
         no_instance_methods = methods & frozenset(('POST', ))
@@ -157,7 +144,7 @@ class APIProvider(object):
             # init_app() has been called on kw['app'], since some other
             # (malicious) code could simply add the key 'restless' to the
             # extensions dictionary.
-            if self.name in app.extensions:
+            if self.name in app.ctx.extensions:
                 blueprint = self.create_api_blueprint(app=app, *args, **kw)
                 app.register_blueprint(blueprint)
             # If the Flask application has not yet been initialized, then stash
