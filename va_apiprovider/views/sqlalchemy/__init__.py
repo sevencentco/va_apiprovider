@@ -6,7 +6,8 @@ import warnings
 
 from sanic.exceptions import SanicException, ServerError
 from sanic.response import json, text, HTTPResponse
-from sanic.request import json_loads
+# from sanic.request import json_loads
+from json import loads as json_loads
 from sanic.views import HTTPMethodView
 
 from sqlalchemy import Column
