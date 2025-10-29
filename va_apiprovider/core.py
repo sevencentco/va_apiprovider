@@ -73,7 +73,7 @@ class APIProvider(object):
         
         for args, kw in to_create:
             blueprint = self.create_api_blueprint(app=app, *args, **kw)
-            app.register_blueprint(blueprint)
+            app.blueprint(blueprint)
             
     def create_api_blueprint(self, model=None, collection_name=None, app=None, methods=READONLY_METHODS,
                              url_prefix='/api', exclude_columns=None,
@@ -146,7 +146,7 @@ class APIProvider(object):
             # extensions dictionary.
             if self.name in app.ctx.extensions:
                 blueprint = self.create_api_blueprint(app=app, *args, **kw)
-                app.register_blueprint(blueprint)
+                app.blueprint(blueprint)
             # If the Flask application has not yet been initialized, then stash
             # the positional and keyword arguments for later initialization.
             else:
@@ -158,7 +158,7 @@ class APIProvider(object):
             if self.app is not None:
                 app = self.app
                 blueprint = self.create_api_blueprint(app=app, *args, **kw)
-                app.register_blueprint(blueprint)
+                app.blueprint(blueprint)
             # If no Flask application was provided in the constructor either,
             # then stash the positional and keyword arguments for later
             # initalization.
