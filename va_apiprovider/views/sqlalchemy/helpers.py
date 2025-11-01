@@ -586,9 +586,13 @@ def count(session, query):
     queries.
 
     """
-    counts = query.selectable.with_only_columns([func.count()])
+    # counts = query.selectable.with_only_columns([func.count()])    
+    counts = query.selectable.with_only_columns(func.count())
     num_results = session.execute(counts.order_by(None)).scalar()
-    if num_results is None or query._limit:
+    # SQLAlchemy 2.x
+    has_limit = query.statement._limit_clause is not None
+    # if num_results is None or query._limit:
+    if num_results is None or has_limit:
         return query.count()
     return num_results
 
