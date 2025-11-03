@@ -30,7 +30,7 @@ setup(
     packages=find_packages(exclude=['tests*']),
     python_requires=">=3.8",
     include_package_data=True,
-    install_requires=['sanic'],
+    install_requires=["sanic==25.3.0"],
     extras_require={},
     zip_safe=False,
     platforms='any',

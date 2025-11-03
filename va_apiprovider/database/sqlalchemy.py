@@ -34,10 +34,13 @@ class DatabaseAlchemy:
         return self.Model.metadata
 
     def _make_scoped_session(self):
-        Session = scoped_session(
-            sessionmaker(bind=self.engine),
-            scopefunc=asyncio.current_task,
-        )
+        def _scopefunc():
+            try:
+                return asyncio.current_task()
+            except RuntimeError:
+                print("You are calling a synchronous function — use async to run it properly")
+                return None        
+        Session = scoped_session(sessionmaker(bind=self.engine),scopefunc=asyncio.current_task,)
         self.Model.query = Session.query_property()
         return Session
 

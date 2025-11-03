@@ -49,3 +49,5 @@ class ModelView(HTTPMethodView):
         
         #for method in ['get', 'post', 'patch', 'put', 'delete']:
         #    decorate(method, catch_integrity_errors(self.motor_db))
+
+
