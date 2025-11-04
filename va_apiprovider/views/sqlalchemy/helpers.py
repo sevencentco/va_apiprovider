@@ -17,6 +17,7 @@ from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.attributes import QueryableAttribute
 from sqlalchemy.orm.query import Query
 from sqlalchemy.sql import func
+from sqlalchemy import select
 from sqlalchemy.sql.expression import ColumnElement
 from sqlalchemy.inspection import inspect as sqlalchemy_inspect
 
@@ -313,7 +314,7 @@ def to_dict(instance, deep=None, exclude=None, include=None,
         column_attrs = inspected_instance.column_attrs.keys()
         descriptors = inspected_instance.all_orm_descriptors.items()
         hybrid_columns = [k for k, d in descriptors
-                          if d.extension_type == hybrid.HYBRID_PROPERTY
+                          if d.extension_type == hybrid.hybrid_property
                           and not (deep and k in deep)]
         columns = column_attrs + hybrid_columns
     except NoInspectionAvailable:
@@ -577,25 +578,29 @@ def strings_to_dates(model, dictionary):
             result[fieldname] = value
     return result
 
+# def count(session, query):
+#     """Returns the count of the specified `query`.
+
+#     This function employs an optimization that bypasses the
+#     :meth:`sqlalchemy.orm.Query.count` method, which can be very slow for large
+#     queries.
+
+#     """
+#     counts = query.selectable.with_only_columns([func.count()])
+#     num_results = session.execute(counts.order_by(None)).scalar()
+#     if num_results is None or query._limit:
+#         return query.count()
+#     return num_results
 
 def count(session, query):
-    """Returns the count of the specified `query`.
+    # Subquery ensures FROM stays intact
+    subq = query.statement.subquery()
+    count_stmt = select(func.count()).select_from(subq)
 
-    This function employs an optimization that bypasses the
-    :meth:`sqlalchemy.orm.Query.count` method, which can be very slow for large
-    queries.
-
-    """
-    # counts = query.selectable.with_only_columns([func.count()])    
-    counts = query.selectable.with_only_columns(func.count())
-    num_results = session.execute(counts.order_by(None)).scalar()
-    # SQLAlchemy 2.x
-    has_limit = query.statement._limit_clause is not None
-    # if num_results is None or query._limit:
-    if num_results is None or has_limit:
+    num_results = session.execute(count_stmt).scalar()
+    if num_results is None or query.statement._limit_clause is not None:
         return query.count()
     return num_results
-
 
 # This code comes from <http://stackoverflow.com/a/6798042/108197>, which is
 # licensed under the Creative Commons Attribution-ShareAlike License version
