@@ -133,7 +133,7 @@ def sqla_create_query(session, model, search_params, _ignore_order_by=False):
     
     if not _ignore_order_by:
         if not search_params.order_by:            
-            field = getattr(model, "created_at")
+            field = getattr(model, "created_at", None)
             if field:                 
                 sqla_query = sqla_query.order_by(field.asc())
         else:
