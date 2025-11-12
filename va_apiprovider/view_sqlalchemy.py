@@ -260,9 +260,7 @@ class SQLAView(ModelView):
             self.serialize = serializer
         if deserializer is None:
             self.deserialize = self._dict_to_inst
-            # And check for our own default ValidationErrors here
-            self.validation_exceptions = tuple(list(self.validation_exceptions)
-                                               + [ValidationError])
+            self.validation_exceptions = tuple(list(self.validation_exceptions) + [ValidationError])
         else:
             self.deserialize = deserializer
         
@@ -324,7 +322,6 @@ class SQLAView(ModelView):
         tochange = frozenset(relations) & frozenset(params)
 
         for columnname in tochange:
-            # Check if 'add' or 'remove' is being used
             if (isinstance(params[columnname], dict)
                 and any(k in params[columnname] for k in ['add', 'remove'])):
 
@@ -366,7 +363,6 @@ class SQLAView(ModelView):
             num_results = count(self.session, instances)
         results_per_page = self._compute_results_per_page(request)
         if results_per_page > 0:
-            # get the page number (first page is page 1)
             page_num = int(request.args.get('page', 1))
             start = (page_num - 1) * results_per_page
             end = min(num_results, start + results_per_page)
@@ -463,12 +459,9 @@ class SQLAView(ModelView):
         except MultipleResultsFound:
             return json(dict(message='Multiple results found'), status=520)
         except Exception as exception:
-            #current_app.logger.exception(str(exception))
             return json(dict(message='Unable to construct query'), status=520)
 
-        # create a placeholder for the relations of the returned models
         relations = frozenset(get_relations(self.model))
-        # do not follow relations that will not be included in the response
         if self.include_columns is not None:
             cols = frozenset(self.include_columns)
             rels = frozenset(self.include_relations)
@@ -477,7 +470,6 @@ class SQLAView(ModelView):
             relations -= frozenset(self.exclude_columns)
         deep = dict((r, {}) for r in relations)
 
-        # for security purposes, don't transmit list as top-level JSON
         if isinstance(result, Query):
             result = self._paginated(request, result, deep)
         else:
@@ -532,7 +524,6 @@ class SQLAView(ModelView):
                     return json(dict(message='No result found'),status=520)
                 result = to_dict(related_value_instance, deep)
             else:
-                # for security purposes, don't transmit list as top-level JSON
                 if is_like_list(instance, relationname):
                     result = self._paginated(list(related_value), deep)
                 else:
@@ -551,14 +542,11 @@ class SQLAView(ModelView):
             return response_exception(exception)
 
         return json(result, headers=headers, status=200)
-        #return result
 
     async def _delete_many(self, request):
-        # try to get search query from the request query parameters
         try:
             search_params = json_loads(request.args.get('q', '{}'))
         except (TypeError, ValueError, OverflowError) as exception:
-            #current_app.logger.exception(str(exception))
             return json(dict(message='Unable to decode search query'), status=520)
 
         try:
@@ -578,17 +566,9 @@ class SQLAView(ModelView):
         except MultipleResultsFound:
             return json(dict(message='Multiple results found'), status=520)
         except Exception as exception:
-            #current_app.logger.exception(str(exception))
             return json(dict(message='Unable to construct query'), status=520)
 
-        # for security purposes, don't transmit list as top-level JSON
         if isinstance(result, Query):
-            # Implementation note: `synchronize_session=False`, described in
-            # the SQLAlchemy documentation for
-            # :meth:`sqlalchemy.orm.query.Query.delete`, states that this is
-            # the most efficient option for bulk deletion, and is reliable once
-            # the session has expired, which occurs after the session commit
-            # below.
             num_deleted = result.delete(synchronize_session=False)
         else:
             self.session.delete(result)
@@ -610,9 +590,6 @@ class SQLAView(ModelView):
 
     async def delete(self, request, instid=None, relationname=None, relationinstid=None):
         if instid is None:
-            # If no instance ID is provided, this request is an attempt to
-            # delete many instances of the model via a search with possible
-            # filters.
             return await self._delete_many(request)
         was_deleted = False
 
@@ -620,10 +597,8 @@ class SQLAView(ModelView):
             for preprocess in self.preprocess['DELETE_SINGLE']:
                 resp = await run_process(process=preprocess, request=request, instance_id=instid,
                     relation_name=relationname, relation_instance_id=relationinstid, Model=self.model)
-
                 if (resp is not None) and isinstance(resp, HTTPResponse):
                     return resp
-                # See the note under the preprocess in the get() method.
                 if resp is not None:
                     instid = resp
         except ProcessingException as exception:
@@ -631,17 +606,12 @@ class SQLAView(ModelView):
 
         inst = get_by(self.session, self.model, instid, self.primary_key)
         if relationname:
-            # If the request is ``DELETE /api/person/1/computers``, error 400.
             if not relationinstid:
-                msg = ('Cannot DELETE entire "{0}"'
-                       ' relation').format(relationname)
+                msg = ('Cannot DELETE entire "{0}" relation').format(relationname)
                 return json(dict(message=msg), status=520)
-            # Otherwise, get the related instance to delete.
             relation = getattr(inst, relationname)
             related_model = get_related_model(self.model, relationname)
-            relation_instance = get_by(self.session, related_model,
-                                       relationinstid)
-            # Removes an object from the relation list.
+            relation_instance = get_by(self.session, related_model, relationinstid)
             relation.remove(relation_instance)
             was_deleted = len(self.session.dirty) > 0
         elif inst is not None:
@@ -682,8 +652,6 @@ class SQLAView(ModelView):
                     return resp
         except ProcessingException as exception:
             return response_exception(exception)
-
-
 
         try:
             instance = self.deserialize(data)
@@ -743,7 +711,6 @@ class SQLAView(ModelView):
                         instance_id=instid, data=data, Model=self.model)
                     if (resp is not None) and isinstance(resp, HTTPResponse):
                         return resp
-                    # See the note under the preprocess in the get() method.
                     if resp is not None:
                         instid = resp
                 except ProcessingException as exception:
@@ -758,10 +725,8 @@ class SQLAView(ModelView):
             try:
                 query = sqla_create_query(self.session, self.model, search_params)
             except Exception as exception:
-                #current_app.logger.exception(str(exception))
                 return json(dict(message='Unable to construct query'),status=520)
         else:
-            # create a SQLAlchemy Query which has exactly the specified row
             query = query_by_primary_key(self.session, self.model, instid,
                                          self.primary_key)
             if query.count() == 0:
@@ -775,11 +740,8 @@ class SQLAView(ModelView):
         field_list = frozenset(data) ^ relations
 
         data = dict((field, data[field]) for field in field_list)
-        # Special case: if there are any dates, convert the string form of the
-        # date into an instance of the Python ``datetime`` object.
         data = strings_to_dates(self.model, data)
         try:
-            # Let's update all instances present in the query
             num_modified = 0
             if data:
                 for item in query.all():
@@ -788,10 +750,8 @@ class SQLAView(ModelView):
                     num_modified += 1
             self.session.commit()
         except self.validation_exceptions as exception:
-            #current_app.logger.exception(str(exception))
             return self._handle_validation_exception(exception)
 
-        # Perform any necessary postprocessing.
         headers = {}
         if putmany:
             result = dict(num_modified=num_modified)
