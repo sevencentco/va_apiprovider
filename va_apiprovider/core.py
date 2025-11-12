@@ -3,39 +3,56 @@ from collections import namedtuple
 from sanic import Blueprint
 from sanic import Blueprint, response
 
-from .views import ModelView
-
-class IllegalArgumentError(Exception):
-    pass
-
-#: The set of methods which are allowed by default when creating an API
-READONLY_METHODS = frozenset(('GET', ))
+from .constant import (READONLY_METHODS, BLUEPRINTNAME_FORMAT, APINAME_FORMAT)
+from .exception import IllegalArgumentError
+from .helpers import upper_keys
+from sanic.views import HTTPMethodView
 
 RestInfo = namedtuple('RestInfo', ['db', 'universal_preprocess', 'universal_postprocess'])
 
+class ModelView(HTTPMethodView):    
+    primary_key = "id"    
+    def __init__(self, model=None, collection_name=None, exclude_columns=None,
+                 include_columns=None, include_methods=None, results_per_page=10,
+                 max_results_per_page=1000, preprocess=None, postprocess=None,
+                 primary_key=None, db=None, *args, **kw):
+        
+        super(ModelView, self).__init__(*args, **kw)
+        
+        if primary_key is not None:
+            self.primary_key = primary_key
+        
+        if db is not None:
+            self.db = db
+        
+        self.model = model
+        
+        self.collection_name = collection_name
+        self.include_methods = include_methods
+        
+        self.results_per_page = results_per_page
+        self.max_results_per_page = max_results_per_page
+        self.include_columns = include_columns
+        self.exclude_columns = exclude_columns
+        
+        self.postprocess = defaultdict(list)
+        self.preprocess = defaultdict(list)
+        self.postprocess.update(upper_keys(postprocess or {}))
+        self.preprocess.update(upper_keys(preprocess or {}))
+
 class APIProvider(object):
     name = "restapi"
-    APINAME_FORMAT = '{0}api'
-    BLUEPRINTNAME_FORMAT = '{0}{1}'
     view_cls = None
     
     @staticmethod
     def _next_blueprint_name(blueprints, basename):
-        
-        # blueprints is a dict whose keys are the names of the blueprints
         existing = [name for name in blueprints if name.startswith(basename)]
-        # if this is the first one...
         if not existing:
             next_number = 0
         else:
-            b = basename
-            existing_numbers = [int(n.partition(b)[-1]) for n in existing]
+            existing_numbers = [int(n.partition(basename)[-1]) for n in existing]
             next_number = max(existing_numbers) + 1
-        return APIProvider.BLUEPRINTNAME_FORMAT.format(basename, next_number)
-    
-    @staticmethod
-    def api_name(collection_name):
-        return APIProvider.APINAME_FORMAT.format(collection_name)
+        return BLUEPRINTNAME_FORMAT.format(basename, next_number)
     
     def __init__(self, name="restapi", app=None, **kw):
         self.name = name
@@ -72,17 +89,16 @@ class APIProvider(object):
             app.blueprint(blueprint)
             
     def create_api_blueprint(self, model=None, collection_name=None, app=None, methods=READONLY_METHODS,
-                             url_prefix='/api', exclude_columns=None,
-                             include_columns=None, include_methods=None,
-                             results_per_page=10, max_results_per_page=100,
-                             preprocess=None, postprocess=None, primary_key=None, *args, **kw):
+                url_prefix='/api', exclude_columns=None,
+                include_columns=None, include_methods=None,
+                results_per_page=10, max_results_per_page=100,
+                preprocess=None, postprocess=None, primary_key=None, *args, **kw):
         if collection_name is None:
             msg = ('collection_name is not valid.')
             raise IllegalArgumentError(msg)
             
         if exclude_columns is not None and include_columns is not None:
-            msg = ('Cannot simultaneously specify both include columns and'
-                   ' exclude columns.')
+            msg = ('Cannot simultaneously specify both include columns and exclude columns.')
             raise IllegalArgumentError(msg)
         
         if app is None:
@@ -92,13 +108,13 @@ class APIProvider(object):
         
         methods = frozenset((m.upper() for m in methods))
         no_instance_methods = methods & frozenset(('POST', ))
-        instance_methods = methods & frozenset(('GET', 'PATCH', 'DELETE', 'PUT'))
+        instance_methods = methods & frozenset(('GET', 'PUT', 'DELETE'))
         possibly_empty_instance_methods = methods & frozenset(('GET', ))
         
         # the base URL of the endpoints on which requests will be made
         collection_endpoint = '/{0}'.format(collection_name)
         
-        apiname = APIProvider.api_name(collection_name)
+        apiname = APINAME_FORMAT.format(collection_name)
         
         preprocessors_ = defaultdict(list)
         postprocessors_ = defaultdict(list)
@@ -106,11 +122,11 @@ class APIProvider(object):
         postprocessors_.update(postprocess or {})
         
         api_view = self.view_cls.as_view(model=model, collection_name=collection_name,exclude_columns=exclude_columns,\
-                            include_columns=include_columns, include_methods=include_methods,\
-                            results_per_page=results_per_page, max_results_per_page=max_results_per_page, \
-                            preprocess=preprocessors_, postprocess=postprocessors_, primary_key=primary_key,\
-                            db=restapi_ext.db)
-                         
+                include_columns=include_columns, include_methods=include_methods,\
+                results_per_page=results_per_page, max_results_per_page=max_results_per_page, \
+                preprocess=preprocessors_, postprocess=postprocessors_, primary_key=primary_key,\
+                db=restapi_ext.db)
+              
         blueprintname = APIProvider._next_blueprint_name(app.blueprints, apiname) 
         bp_route_name = blueprintname + "_nim" #### no_instance_methods
         blueprint = Blueprint(blueprintname, url_prefix=url_prefix)
@@ -129,8 +145,7 @@ class APIProvider(object):
         if 'app' in kw:
             if self.app is not None:
                 msg = ('Cannot provide a application in the APIProvider'
-                       ' constructor and in create_api(); must choose exactly'
-                       ' one')
+                       ' constructor and in create_api(); must choose exactly one')
                 raise IllegalArgumentError(msg)
             app = kw.pop('app')
             if self.name in app.ctx.extensions:

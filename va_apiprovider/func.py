@@ -2,19 +2,16 @@ from collections import defaultdict
 # from types import SimpleNamespace
 from collections import namedtuple
 from sanic import Blueprint, response
-from types import SimpleNamespace
 
-from .views import ModelView
-from .core import (IllegalArgumentError, READONLY_METHODS, RestInfo)
+from .core import (RestInfo,ModelView)
+from .exception import IllegalArgumentError
+from .constant import (READONLY_METHODS, BLUEPRINTNAME_FORMAT, APINAME_FORMAT)
+from .helpers import to_namespace
 
 from collections import defaultdict
 
-APINAME_FORMAT = "{0}api"
-BLUEPRINTNAME_FORMAT = "{0}{1}"
-
 def next_blueprint_name(blueprints, basename):        
     existing = [name for name in blueprints if name.startswith(basename)]
-    print("existing==========",existing)
     if not existing: ### if this is the first one...
         next_number = 0
     else:
@@ -22,10 +19,6 @@ def next_blueprint_name(blueprints, basename):
         existing_numbers = [int(n.partition(b)[-1]) for n in existing]
         next_number = max(existing_numbers) + 1
     return BLUEPRINTNAME_FORMAT.format(basename, next_number)
-    
-def api_name(collection_name):
-    return APINAME_FORMAT.format(collection_name)
-    
 
 def api_provider(name="restapi", app=None, **kw):   
     _name = name
@@ -88,7 +81,7 @@ def api_provider(name="restapi", app=None, **kw):
         # the base URL of the endpoints on which requests will be made
         collection_endpoint = '/{0}'.format(collection_name)
         
-        apiname = api_name(collection_name)
+        apiname = APINAME_FORMAT.format(collection_name)
         
         preprocessors_ = defaultdict(list)
         postprocessors_ = defaultdict(list)
@@ -136,7 +129,7 @@ def api_provider(name="restapi", app=None, **kw):
             else:
                 _apis_to_create[None].append((args, kw))
 
-    return to_ns({
+    return to_namespace({
         "init_app" : init_app, 
         "create_api" : create_api, 
         "create_api_blueprint" : create_api_blueprint,
@@ -145,11 +138,3 @@ def api_provider(name="restapi", app=None, **kw):
             "queued" : lambda: _apis_to_create,
         }, 
     })
-
-def to_ns(obj):
-    if isinstance(obj, dict):
-        return SimpleNamespace(**{k: to_ns(v) for k, v in obj.items()})
-    elif isinstance(obj, list):
-        return [to_ns(v) for v in obj]
-    else:
-        return obj

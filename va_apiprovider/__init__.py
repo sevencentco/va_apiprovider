@@ -1,4 +1,4 @@
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 
 # make the following names available as part of the public API
 from .core import APIProvider
