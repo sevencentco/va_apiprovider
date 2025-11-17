@@ -115,37 +115,40 @@ def sqla_create_filter(model, filt):
         return and_(sqla_create_filter(model, f) for f in filt)
     if filt.junction == "DisjunctionFilter":    
         return or_(sqla_create_filter(model, f) for f in filt)
-    fname = filt.field
+    fieldname = filt.field
     val = filt.argument
     relation = None
-    # get the other field to which to compare, if it exists
     if filt.otherfield:
         val = getattr(model, filt.otherfield)
-    return sqla_create_operation(model, fname, filt.operator, val, relation)
+    return sqla_create_operation(model, fieldname, filt.operator, val, relation)
 
 def sqla_create_query(session, model, search_params, _ignore_order_by=False):
     if isinstance(search_params, dict):
         search_params = search_parameters_namespace(search_params)
+    if _ignore_order_by:
+        setattr(search_params, order_by, None)
     sqla_query = session_query(session, model)     
     filters = bool(search_params.filters) and [
         sqla_create_filter(model, search_params.filters)] or []
     sqla_query = sqla_query.filter(*filters)
     
-    if not _ignore_order_by:
-        if not search_params.order_by:            
-            field = getattr(model, "created_at", None)
-            if field:                 
-                sqla_query = sqla_query.order_by(field.asc())
-        else:
-            for val in search_params.order_by:
-                field = getattr(model, val.field)
-                direction = getattr(field, val.direction)
-                sqla_query = sqla_query.order_by(direction())
+    # Order the query.
+    if search_params.order_by:
+        for order_by in search_params.order_by:
+            field = getattr(model, order_by.field, None)
+            if field is None:                  
+                raise ValueError(f"The order_by field '{order_by.field}' is invalid")  
+            direction = getattr(field, order_by.direction, None)
+            if direction is None:      
+                raise ValueError(f"The order_by direction '{order_by.direction}' is invalid")       
+            sqla_query = sqla_query.order_by(direction())
 
     # Group the query.
     if search_params.group_by:
-        for groupby in search_params.group_by:
-            field = getattr(model, groupby.field)
+        for group_by in search_params.group_by:
+            field = getattr(model, group_by.field, None)            
+            if field is None:      
+                raise ValueError(f"The group_by field '{group_by.field}' is invalid")           
             sqla_query = sqla_query.group_by(field)
 
     # Apply limit and offset to the query.
@@ -473,7 +476,7 @@ class SQLAView(ModelView):
         if isinstance(result, Query):
             result = self._paginated(request, result, deep)
         else:
-            primary_key = self.primary_key or primary_key_name(result)
+            # primary_key = self.primary_key or primary_key_name(result)
             result = to_dict(result, deep, exclude=self.exclude_columns,
                              exclude_relations=self.exclude_relations,
                              include=self.include_columns,
