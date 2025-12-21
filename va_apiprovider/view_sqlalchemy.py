@@ -112,9 +112,11 @@ def sqla_create_operation(model, fieldname, operator, argument, relation=None):
 
 def sqla_create_filter(model, filt):     
     if filt.junction == "ConjunctionFilter":
-        return and_(sqla_create_filter(model, f) for f in filt)
+        filter_and = [sqla_create_filter(model, f) for f in filt]
+        return and_(*filter_and)
     if filt.junction == "DisjunctionFilter":    
-        return or_(sqla_create_filter(model, f) for f in filt)
+        filter_or = [sqla_create_filter(model, f) for f in filt]
+        return or_(*filter_or)
     fieldname = filt.field
     val = filt.argument
     relation = None
