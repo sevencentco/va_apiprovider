@@ -47,10 +47,10 @@ class DatabaseAlchemy:
     # -----------------------
     # Init app
     # -----------------------
-    def init_app(self, app):
-        uri = (self.uri or app.config.get("SQLALCHEMY_DATABASE_URI") or "sqlite:///:memory:")
+    def init_app(self, app=None, uri=None):
+        uri_ = (uri or self.uri or app.config.get("SQLALCHEMY_DATABASE_URI") or "sqlite:///:memory:")
 
-        self.uri = uri
+        self.uri = uri_
         self.session = self._make_scoped_session()
 
         if not hasattr(app, "ctx"):
